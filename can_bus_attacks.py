@@ -283,39 +283,38 @@ class ReplayAttack:
         
         while self.running and 'replay' in self.manager.active_attacks:
             for arb_id, captured_data in self.captured.items():
-                # Replay old message multiple times
+                # Replay old message multiple times rapidly (burst)
                 for _ in range(3):
-                    frame = CANFrame(
-                        arbitration_id=arb_id,
-                        data=captured_data,
-                        source="ATTACKER"
-                    )
-                    
                     self.manager.stats['replay'].attempts += 1
                     blocked = False
                     
-                    # Authentication with timestamps/nonces would prevent replay
-                    if self.manager.security.measures['authentication']:
-                        # HMAC alone doesn't prevent replay without timestamps
-                        # But it makes it harder - attacker needs valid HMAC
-                        self.manager.stats['replay'].detected += 1
-                        # Only partially effective
+                    # Check rate limiting BEFORE creating the frame
+                    if self.manager.security.measures['rate_limiting']:
+                        allowed, _, rate = self.manager.security.check_rate_limit(arb_id)
+                        if not allowed:
+                            self.manager.stats['replay'].blocked += 1
+                            self.manager.stats['replay'].detected += 1
+                            blocked = True
+                            print(f"   [Rate Limit] BLOCKED replay on ID={arb_id:03X} (rate: {rate} msg/s)")
                     
-                    # IDS might detect duplicate patterns
-                    if self.manager.security.measures['ids']:
-                        # IDS sees unusual message frequency/duplication
+                    # Check IDS for anomalies
+                    if self.manager.security.measures['ids'] and not blocked:
                         allowed, _, _ = self.manager.security.check_anomaly(arb_id)
                         if not allowed:
                             self.manager.stats['replay'].detected += 1
+                            print(f"   [IDS] DETECTED replay anomaly on ID={arb_id:03X}")
                     
-                    # Rate limiting catches burst replays
-                    if self.manager.security.measures['rate_limiting']:
-                        allowed, _, _ = self.manager.security.check_rate_limit(arb_id)
-                        if not allowed:
-                            self.manager.stats['replay'].blocked += 1
-                            blocked = True
+                    # HMAC can't prevent replay without timestamps
+                    if self.manager.security.measures['authentication'] and not blocked:
+                        self.manager.stats['replay'].detected += 1
                     
+                    # Only send if not blocked
                     if not blocked:
+                        frame = CANFrame(
+                            arbitration_id=arb_id,
+                            data=captured_data,
+                            source="ATTACKER"
+                        )
                         self.bus.send(frame)
                         self.manager.stats['replay'].successful += 1
                         self.manager.compromised_nodes.add("EngineECU")

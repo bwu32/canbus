@@ -77,8 +77,17 @@ class CANWebSocketServer:
             for measure, overhead in sim_state['security_overhead'].items()
         }
         
-        # Calculate total latency impact
-        total_overhead = sum(security_overhead.values())
+        # Calculate average actual latency from recent messages (from the graph)
+        recent_latencies = []
+        for ctrl in self.simulation.controllers:
+            if ctrl.latency_history:
+                recent_latencies.extend(list(ctrl.latency_history)[-50:])
+        
+        # This is the ACTUAL overhead shown in the graph
+        avg_actual_latency = sum(recent_latencies) / len(recent_latencies) if recent_latencies else 0
+        
+        # Use the measured latency as total overhead (this is what's shown in graph)
+        total_overhead = avg_actual_latency
         
         # Determine latency warnings
         warnings = []
@@ -102,6 +111,7 @@ class CANWebSocketServer:
             'latency_data': latency_data,
             'security_overhead': security_overhead,
             'total_overhead': total_overhead,
+            'avg_actual_latency': avg_actual_latency,
             'warnings': warnings
         }
     

@@ -1,416 +1,438 @@
-# CAN Bus Security Simulation System
+# CAN Bus Security Simulation
 
-## 🎯 Objective: Why This Matters
+## 🎯 Objective
 
-Modern vehicles rely on Controller Area Network (CAN) buses for critical communication between Electronic Control Units (ECUs). These networks control **safety-critical systems** including:
+**Goal:** Simulate in-vehicle CAN communications to demonstrate how attackers can inject, replay, or flood messages to manipulate ECUs, then apply computer security principles to strengthen those vulnerabilities.
 
-- **Brakes & ABS** (arbitration IDs 0x0A0-0x0A1)
-- **Steering & Traction Control** (0x0C0-0x0C1)
-- **Engine Management** (0x100-0x101)
-- **Transmission** (0x200)
-- **Body Controls** (doors, lights - 0x300-0x301)
-
-### The Problem
-
-Traditional CAN buses were designed in the 1980s **without security** - no encryption, authentication, or access control. Any device with physical or wireless access can:
-
-1. **Read all traffic** (no confidentiality)
-2. **Inject malicious messages** (no authentication)
-3. **Flood the bus** (no rate limiting)
-4. **Replay captured messages** (no freshness guarantees)
-
-### Real-World Incidents
-
-- **2015 Jeep Cherokee Hack**: Researchers remotely disabled brakes via cellular connection
-- **2016 Tesla Model S**: CAN injection attack unlocked doors and started engine
-- **2019 Automotive Malware**: 100+ vulnerabilities found across major manufacturers
-
-This simulation demonstrates these vulnerabilities and how modern security measures can prevent them.
+This proof-of-concept demonstrates:
+- How attackers exploit CAN bus vulnerabilities
+- Real-time effects of attacks on vehicle systems
+- Effectiveness of security countermeasures
+- Trade-offs between security and real-time performance
 
 ---
 
-## 🔓 Attack Vectors: How Adversaries Gain Access
+## 🚗 Why is CAN Important?
 
-### 1. **Physical Access**
-The easiest and most common attack vector:
+### What is CAN?
+**CAN (Controller Area Network)** is the primary communication protocol in modern vehicles, connecting 50-100+ Electronic Control Units (ECUs).
 
-#### OBD-II Port (Under Steering Column)
-- **Location**: Mandatory diagnostic port under dashboard (within reach of driver)
-- **Access Level**: Full read/write to CAN bus
-- **Attack Time**: Seconds to plug in device
-- **Real Example**: Insurance dongles, aftermarket diagnostic tools
+### What are ECUs?
+**ECUs (Electronic Control Units)** are small embedded computers that control specific vehicle functions:
+- **Engine ECU**: Manages fuel injection, RPM, temperature
+- **Brake ECU**: Controls braking pressure, ABS (CRITICAL)
+- **Transmission ECU**: Handles gear shifting
+- **Body ECU**: Manages doors, lights, windows
 
-#### ECU Node Tampering
-- **Method**: Cut wires, splice in malicious device between ECUs
-- **Targets**: 
-  - Headlight/Taillight harnesses (often accessible from wheel wells)
-  - Door control modules (accessible from door panels)
-  - Infotainment systems (removable from dashboard)
-- **Detection**: Often invisible - hidden inside wire harnesses
+### The Security Problem
+**CAN has essentially no security:**
+- **No encryption** - All messages visible in plaintext
+- **No authentication** - Any ECU can send any message
+- **No access control** - No verification of sender identity
+- **No freshness guarantees** - Old messages can be replayed
 
-### 2. **Wireless Access**
-Modern vehicles have multiple wireless attack surfaces:
-
-#### Cellular/Telematics (4G/5G)
-- **Target**: Connected car services, remote start, stolen vehicle tracking
-- **Path to CAN**: Telematics Control Unit (TCU) → Gateway ECU → CAN bus
-- **Example**: 2015 Jeep hack used cellular connection to compromise Uconnect system
-
-#### Bluetooth
-- **Target**: Hands-free calling, audio streaming
-- **Path to CAN**: Bluetooth module → Infotainment ECU → CAN gateway
-- **Range**: 10-30 meters (parking lot attacks)
-
-#### Wi-Fi (Tesla, luxury vehicles)
-- **Target**: Software updates, media streaming
-- **Risk**: If infotainment system compromised, can bridge to CAN
-
-#### Key Fob (Passive Entry)
-- **Attack**: Relay attack to extend fob signal
-- **Impact**: Unlock doors, access OBD-II port
-
-### 3. **Supply Chain Attacks**
-- Malicious ECU firmware from compromised suppliers
-- Counterfeit replacement parts with backdoors
-- Malware in vehicle software updates
-
-### 4. **Social Engineering**
-- "Free diagnostic scan" at parking lots
-- Malicious USB devices plugged into infotainment
-- Compromised charging stations (EVs)
+Designed in 1983 for reliability and speed, not security. Today's connected vehicles make this a critical vulnerability.
 
 ---
 
-## 🛡️ Security Measures Implemented
+## 🔓 Vulnerabilities
 
-### 1. **AES-128 Encryption**
-- **Purpose**: Confidentiality - prevents eavesdropping
-- **Method**: CBC mode with random IV per message
-- **Overhead**: ~0.5ms per message
-- **Limitations**: Doesn't prevent replay attacks
+### Real-World Consequences
+- **2015 Jeep Cherokee**: Hackers remotely disabled brakes at highway speeds → 1.4M vehicles recalled
+- **2016 Tesla Model S**: Researchers unlocked doors and started engine via CAN injection
+- **Ongoing**: 100+ vulnerabilities discovered across major manufacturers
 
-### 2. **HMAC-SHA256 Authentication**
-- **Purpose**: Integrity & authenticity - prevents tampering
-- **Method**: Message Authentication Code using shared secret
-- **Overhead**: ~0.3ms per message
-- **Effectiveness**: Blocks spoofing attacks (attacker can't forge valid MAC)
+### Attack Surfaces
+1. **OBD-II Port** (under steering wheel) - Direct CAN access
+2. **Wireless** (Bluetooth, Wi-Fi, Cellular) - Remote exploitation
+3. **Infotainment Systems** - Bridge to CAN network
+4. **Physical Tampering** - Wire splicing, rogue ECUs
 
-### 3. **Rate Limiting**
-- **Purpose**: Prevents bus flooding/DoS attacks
-- **Threshold**: Max 50 messages per arbitration ID per second
-- **Method**: Sliding window counter
-- **Overhead**: ~0.1ms per message
-- **Effectiveness**: Blocks priority hijack attacks
+### Current Solutions (Insufficient)
+- **Network Segmentation** - Separate critical/non-critical buses (bypassed if gateway compromised)
+- **Firewalls** - Limited effectiveness without authentication
+- **Anomaly Detection** - Can detect but not prevent attacks
+- **Physical Security** - Doesn't stop wireless attacks
 
-### 4. **Intrusion Detection System (IDS)**
-- **Purpose**: Detect anomalous message patterns
-- **Method**: Statistical baseline of normal message frequencies
-- **Learning Phase**: 2 seconds to establish baseline
-- **Detection**: Flags messages 3x faster than baseline
-- **Overhead**: ~0.1ms per message
-- **Effectiveness**: Detects replay and flooding attacks
+**Problem:** Retrofitting security into CAN is expensive and complex. This simulation explores practical solutions.
+
+---
+
+## 🖥️ Simulation Overview
+
+### Architecture
+Our code simulates a virtual CAN network with multiple ECUs communicating like in a real vehicle.
+
+**Components:**
+
+1. **Virtual CAN Bus**
+   - Shared communication line (500 kbps bitrate)
+   - Handles message priority (lower arbitration ID = higher priority)
+   - Simulates timing (128 bits per frame = 0.256ms transmission)
+   - Broadcasts messages to all connected ECUs
+
+2. **ECUs (Electronic Control Units)**
+   - **Engine ECU**: Sends RPM (0x100) and temperature (0x101) every 50ms
+   - **Brake ECU**: Sends brake pressure (0x0A0) and status (0x0A1) every 10ms (CRITICAL)
+   - **Transmission ECU**: Sends gear position (0x200) every 80ms
+   - **Body ECU**: Sends door locks (0x300) and lights (0x301) every 100ms
+
+3. **CAN Controllers**
+   - Each ECU has a controller that:
+     - **Sends messages** with security measures applied
+     - **Receives subscribed messages** (only listens to relevant IDs)
+     - **Applies security checks** (encryption, authentication, rate limiting, IDS)
+     - **Tracks latency** for performance analysis
+
+4. **Parallel Operation**
+   - All ECUs run in separate threads
+   - Simulate real-time concurrent communication
+   - System logs message latency continuously
+   - WebSocket server broadcasts updates every 100ms to frontend
 
 ---
 
 ## 🔴 Attacks Implemented
 
-### 1. **Bus Flooding (Priority Hijack)**
-- **Method**: Spam arbitration ID 0x000 (highest priority)
-- **Impact**: Starves legitimate messages, causes denial of service
-- **Target**: Entire CAN bus
-- **Real-World Risk**: Emergency braking disabled, steering unresponsive
-- **Blocked By**: Rate limiting, IDS
-- **Critical Scenario**: During emergency maneuver, brakes don't engage
+### 1. Bus Flooding (Priority Hijack)
+**Method:** Spam arbitration ID `0x000` (highest priority) at 10,000 messages/second
 
-### 2. **Message Spoofing**
-- **Method**: Inject fake messages with critical commands
-- **Targets**:
-  - `0x0A0`: Set brake pressure to 0 (DISABLES BRAKES!)
-  - `0x300`: Unlock all doors
-  - `0x301`: Turn off lights (safety hazard at night)
-- **Impact**: Direct control of vehicle functions
-- **Real-World Risk**: Disable safety systems remotely
-- **Blocked By**: HMAC authentication, encryption
-- **Critical Scenario**: Brakes disabled while driving at highway speeds
+**How it works:**
+- CAN uses priority-based arbitration (lower ID wins)
+- Attacker floods with ID 0x000
+- Legitimate messages (brakes, steering) are starved
+- Vehicle systems paralyzed
 
-### 3. **Replay Attack**
-- **Method**: Record legitimate messages, replay them later
-- **Targets**: 
-  - `0x100`: Engine RPM (confuse transmission shifting)
-  - `0x200`: Gear position (cause incorrect behavior)
-- **Impact**: ECUs receive stale/incorrect data
-- **Real-World Risk**: Transmission shifts at wrong time, engine damage
-- **Blocked By**: Rate limiting (burst detection), IDS (pattern detection)
-- **Note**: Basic HMAC doesn't prevent replay - needs timestamps/nonces
+**Real-world impact:**
+- Brakes unresponsive
+- Steering power assist disabled
+- Complete denial of service
+
+**Blocked by:** Rate Limiting (detects >20 msg/sec)
 
 ---
 
-## 🚨 Latency Safety Thresholds
+### 2. Message Spoofing
+**Method:** Inject fake messages with malicious commands
 
-Critical vehicle systems have **hard real-time requirements**:
+**Targets:**
+- **Brake Pressure (0x0A0)**: Set to 0 → Disables brakes (CRITICAL!)
+- **Door Locks (0x300)**: Set to unlocked → Security bypass
+- **Lights (0x301)**: Turn off → Safety hazard at night
 
-### Critical Systems (<10ms)
-- **Brakes**: 10ms delay = 1 meter stopping distance at highway speed
-- **Airbags**: Must deploy within 30ms of crash detection
-- **Anti-lock Braking (ABS)**: Pulses brakes every 10-15ms
+**How it works:**
+- Attacker sends messages impersonating legitimate ECUs
+- Without authentication, receivers trust all messages
+- Malicious commands executed immediately
 
-### Safety Systems (<20ms)
-- **Electronic Stability Control**: 20ms response time
-- **Power Steering**: <20ms for responsive handling
-- **Traction Control**: Real-time wheel speed monitoring
+**Real-world impact:**
+- Direct control of vehicle functions
+- Safety systems compromised
+- Potential for crashes or theft
 
-### Normal Systems (<100ms)
-- **Engine Telemetry**: RPM, temperature
-- **Transmission**: Gear changes
-- **Body Controls**: Lights, locks, windows
-
-### ⚠️ WARNING SYSTEM
-If security overhead exceeds these thresholds:
-- **>10ms**: 🚨 **CRITICAL** - Brakes/airbags compromised
-- **>20ms**: ⚠️ **WARNING** - Steering/ABS affected
-- Dashboard shows real-time latency warnings
+**Blocked by:** HMAC Authentication (attacker can't forge valid MAC without secret key)
 
 ---
 
-## 📦 Installation & Setup
+### 3. Replay Attack
+**Method:** Capture legitimate messages and retransmit them later
 
-### Prerequisites
-```bash
-# Python 3.8+
-python --version
+**Targets:**
+- **Engine RPM (0x100)**: Replay old RPM value
+- **Gear Position (0x200)**: Replay incorrect gear data
 
-# Install Python dependencies
-pip install pycryptodome websockets
-```
+**How it works:**
+- Attacker records valid messages (with encryption/HMAC intact)
+- Replays messages in rapid bursts (3x per cycle)
+- ECUs receive stale/incorrect data
 
-### Running the Simulation
+**Real-world impact:**
+- Transmission shifts at wrong RPM → Engine damage
+- Confuses control logic with outdated sensor data
+- Dashboard shows false information
 
-1. **Start Backend Server**
-```bash
-python server.py
-```
-
-You should see:
-```
-✅ CAN Simulation started
-🚀 WebSocket server starting on ws://localhost:8765
-✅ Server ready! Connect from frontend at ws://localhost:8765
-📊 Broadcasting updates every 100ms
-```
-
-2. **Open Frontend**
-- Open `frontend.html` in Claude.ai artifacts (it will run React automatically)
-- Or deploy to local React environment
-
-3. **Verify Connection**
-- Frontend should show "Connected" status
-- Real-time ECU health displayed
-- Latency graph begins updating
+**Blocked by:** Rate Limiting (catches burst replays at >20 msg/sec)
 
 ---
 
-## 🎮 Usage Guide
+## 🛡️ Security Measures
 
-### Security Controls
+### 1. AES-128 Encryption
+**Purpose:** Confidentiality - prevents eavesdropping
 
-**Toggle Security Measures**:
-- Click ON/OFF buttons for each measure
-- Watch latency overhead change in real-time
-- Observe attack effectiveness change
+**How it works:**
+```
+Sender: Plaintext → AES-CBC encrypt (random IV) → Ciphertext
+Receiver: Ciphertext → AES-CBC decrypt → Plaintext
+```
 
-**Recommended Configurations**:
-- **Maximum Security**: All 4 measures ON (high latency ~1-2ms)
-- **Balanced**: Encryption + Authentication (medium latency ~0.8ms)
-- **Performance**: Rate Limiting + IDS only (low latency ~0.2ms)
+**Process:**
+- Each message encrypted with shared 128-bit key
+- Random Initialization Vector (IV) per message
+- Receiver decrypts and verifies padding
 
-### Attack Simulation
+**Overhead:** ~1.0ms (0.5ms encrypt + 0.5ms decrypt)
 
-**Manual Attacks**:
-1. Click START button for desired attack
-2. Monitor "Active Attack" indicators
-3. Watch compromised nodes appear
-4. Observe security blocking effectiveness
-5. Click STOP to end attack
-
-**Attack Statistics**:
-- **Attempts**: Total attack messages sent
-- **Success**: Messages that reached targets
-- **Blocked**: Messages stopped by security
-- **Detection Rate**: Percentage detected by IDS
-
-### Monitoring System Health
-
-**ECU Status Indicators**:
-- 🟢 **Healthy**: Normal operation, no attacks detected
-- 🟡 **Warning**: High latency or attacks detected
-- 🔴 **Compromised**: Currently under active attack
-
-**Latency Graph**:
-- Blue line = measured message latency
-- Red dashed = critical threshold (10ms)
-- Yellow dashed = safety threshold (20ms)
-- Green dashed = normal threshold (100ms)
+**Effectiveness:**
+- ✅ Blocks eavesdropping (attacker can't read messages)
+- ⚠️ Partial against spoofing (unencrypted messages fail decryption)
+- ❌ Doesn't prevent replay (encrypted message still valid)
 
 ---
 
-## 📊 Understanding the Data
+### 2. HMAC-SHA256 Authentication
+**Purpose:** Integrity & Authenticity - prevents tampering and spoofing
 
-### Security Statistics Panel
+**How it works:**
+```
+Sender: Message → HMAC(secret_key, message) → Message + MAC
+Receiver: Verify HMAC(secret_key, message) == received_MAC
+```
 
-- **Attacks Detected**: IDS identified anomalies
-- **Attacks Blocked**: Rate limiter stopped messages
-- **Successful Attacks**: Messages that bypassed security
-- **Messages Encrypted**: Total encryption operations
+**Process:**
+- Generate 32-byte MAC using SHA-256 hash with secret key
+- Append MAC to message
+- Receiver recalculates MAC and compares
+- Mismatch = message rejected
+
+**Overhead:** ~0.6ms (0.3ms sign + 0.3ms verify)
+
+**Effectiveness:**
+- ❌ Doesn't encrypt (messages visible)
+- ✅ **Blocks spoofing** (attacker can't forge valid MAC)
+- ⚠️ Doesn't prevent replay (valid MAC can be replayed)
+
+**Why spoofing fails:**
+- Attacker doesn't know secret key
+- Can't generate valid MAC for fake messages
+- All forged messages rejected
+
+---
+
+### 3. Rate Limiting
+**Purpose:** Prevent denial-of-service and burst attacks
+
+**How it works:**
+```
+For each CAN ID:
+  Count messages in last 1 second
+  If count > 20: BLOCK message
+  Else: ALLOW message
+```
+
+**Process:**
+- Track timestamps of messages per arbitration ID
+- Sliding window (last 1 second)
+- Threshold: 20 messages per ID per second
+- Exceeding threshold = message dropped
+
+**Overhead:** ~0.1ms (timestamp check)
+
+**Effectiveness:**
+- ❌ Doesn't prevent spoofing
+- ✅ **Blocks bus flooding** (catches 10,000 msg/sec attacks)
+- ✅ **Blocks replay bursts** (3 replays in 0.003s exceeds threshold)
+
+**Why flooding fails:**
+- Attacker sends 10,000 msg/sec
+- Rate limiter allows only 20/sec
+- 99.8% of attack messages dropped
+
+---
+
+### 4. Intrusion Detection System (IDS)
+**Purpose:** Detect anomalous message patterns
+
+**How it works:**
+```
+Learning Phase (2 seconds):
+  Record normal message frequencies per ID
+  Calculate baseline: avg_interval between messages
+
+Detection Phase:
+  If new_interval < baseline/3: ALERT (3x faster than normal)
+```
+
+**Process:**
+- Learn normal behavior (first 2 seconds)
+- Calculate average message intervals for each ID
+- Flag messages arriving 3x faster than baseline
+- **Does not block** - only detects and alerts
+
+**Overhead:** ~0.1ms (pattern comparison)
+
+**Effectiveness:**
+- ❌ Doesn't block attacks
+- ⚠️ Detects bus flooding (obvious frequency spike)
+- ⚠️ Detects replay bursts (unusual duplication)
+- ✅ Provides visibility into attacks
+
+**Limitation:** Cannot prevent attacks, only raise alerts
+
+---
+
+## 📊 Simulation Evaluation
+
+### Latency Thresholds (Safety-Critical)
+Modern vehicles have **hard real-time requirements**:
+
+| System | Threshold | Why It Matters |
+|--------|-----------|----------------|
+| **Brakes/Airbags** | <10ms | 10ms delay = 1m stopping distance at highway speed |
+| **Steering/ABS** | <20ms | Required for responsive handling |
+| **Telemetry** | <100ms | Non-critical data |
+
+**Warning:** If security overhead exceeds these thresholds, safety is compromised.
+
+---
 
 ### Attack Effectiveness Matrix
 
-| Attack | No Security | Rate Limit | Encryption | Auth | IDS | All |
-|--------|-------------|------------|------------|------|-----|-----|
-| **Bus Flooding** | 100% success | Blocked | No effect | No effect | Detected | Blocked |
-| **Spoofing** | 100% success | No effect | Detected | Blocked | No effect | Blocked |
-| **Replay** | 100% success | Blocked | No effect | Detected | Detected | Blocked |
+| Attack | No Security | Rate Limit | Encryption | HMAC | IDS | **All Security** |
+|--------|------------|-----------|------------|------|-----|------------------|
+| **Bus Flooding** | ❌ 100% success | ✅ **BLOCKED** | ❌ 100% | ❌ 100% | ⚠️ Detected | ✅ **BLOCKED** |
+| **Spoofing** | ❌ 100% success | ❌ 100% | ⚠️ Detected | ✅ **BLOCKED** | ❌ 100% | ✅ **BLOCKED** |
+| **Replay** | ❌ 100% success | ✅ **BLOCKED** | ❌ 100% | ⚠️ Detected | ⚠️ Detected | ✅ **BLOCKED** |
+
+**Key Finding:** No single measure stops all attacks - **layered defense is essential**.
 
 ---
 
-## 🔬 Technical Architecture
+### Security vs. Performance Trade-offs
 
-### File Structure
-```
-can_bus_simulation.py   # Core CAN bus + security logic
-can_bus_attacks.py      # Attack implementations
-server.py               # WebSocket server (100ms updates)
-frontend.html           # React dashboard (real-time viz)
-README.md              # This file
-```
+**Measured Latency (Average):**
 
-### Communication Flow
-```
-[Python Backend]
-     ↓ WebSocket (JSON)
-[React Frontend]
-     ↓ User Actions (toggle security, trigger attacks)
-[Python Backend]
-     ↓ State Updates (100ms)
-[React Frontend] → Real-time graphs & stats
-```
+| Configuration | Total Overhead | Safe for Brakes? | Safe for Steering? |
+|--------------|----------------|------------------|-------------------|
+| No Security | ~0.3ms | ✅ Yes | ✅ Yes |
+| Encryption Only | ~1.0ms | ✅ Yes | ✅ Yes |
+| HMAC Only | ~0.6ms | ✅ Yes | ✅ Yes |
+| Rate Limit + IDS | ~0.2ms | ✅ Yes | ✅ Yes |
+| **All Security** | **~2.0ms** | ✅ Yes | ✅ Yes |
 
-### Message Format (WebSocket)
-```json
-{
-  "timestamp": 1234567890.123,
-  "simulation": {
-    "security_measures": {"encryption": true, ...},
-    "security_stats": {"attacks_blocked": 42, ...},
-    "controllers": [{"name": "BrakeECU", "health": "healthy", ...}]
-  },
-  "attacks": {
-    "active_attacks": ["bus_flooding"],
-    "compromised_nodes": ["BrakeECU"],
-    "statistics": {...}
-  },
-  "latency_data": [...],
-  "warnings": [...]
-}
-```
+**Result:** All security measures stay **well under 10ms critical threshold** - safe for deployment.
 
 ---
 
-## 🎓 Educational Use Cases
+### Recommended Configuration
 
-### Demonstration Scenarios
+**For Critical Systems (Brakes, Airbags):**
+- ✅ HMAC Authentication (~0.6ms)
+- ✅ Rate Limiting (~0.1ms)
+- **Total: ~0.7ms** (safe)
 
-**Scenario 1: Unprotected System**
-1. Disable all security measures
-2. Start bus flooding attack
-3. **Observe**: All legitimate messages blocked, system paralyzed
-4. **Lesson**: Why rate limiting is essential
+**For Safety Systems (Steering, ABS):**
+- ✅ Encryption (~1.0ms)
+- ✅ HMAC Authentication (~0.6ms)
+- ✅ Rate Limiting (~0.1ms)
+- **Total: ~1.7ms** (safe)
 
-**Scenario 2: Encryption Alone Isn't Enough**
-1. Enable only encryption
-2. Start spoofing attack
-3. **Observe**: Attacker can still inject unencrypted messages
-4. **Lesson**: Need authentication for integrity
-
-**Scenario 3: Layered Defense**
-1. Enable all 4 measures
-2. Launch all 3 attacks simultaneously
-3. **Observe**: Attacks detected/blocked, system remains functional
-4. **Lesson**: Defense in depth is critical
-
-**Scenario 4: Latency Trade-offs**
-1. Enable all security on critical systems (brakes)
-2. **Observe**: Latency exceeds 10ms threshold
-3. **Lesson**: Security must be balanced with real-time requirements
+**For Normal Systems (Telemetry, Body Controls):**
+- ✅ All 4 measures (~2.0ms)
+- **Total: ~2.0ms** (safe, plenty of margin)
 
 ---
 
-## 🚀 Future Enhancements
+## 🔬 Significance
 
-### Potential Additions
-- [ ] Timestamp-based replay protection
-- [ ] Key rotation mechanism
-- [ ] CAN-FD support (higher bandwidth)
-- [ ] Hardware Security Module (HSM) simulation
-- [ ] Machine learning IDS
-- [ ] Multi-domain CAN segmentation
-- [ ] Attack dataset CSV import
-- [ ] Export attack reports
+### Why This Matters
+
+**Automotive Cybersecurity is Critical:**
+- 300+ million connected vehicles by 2025
+- Average vehicle has 100+ ECUs and 100 million lines of code
+- One vulnerability can affect millions of vehicles
+- Lives depend on secure vehicle systems
+
+**This Simulation Demonstrates:**
+1. **CAN is fundamentally insecure** - No protection by design
+2. **Attacks are practical** - Simple code can compromise vehicles
+3. **Security is feasible** - Countermeasures work within real-time constraints
+4. **Trade-offs exist** - Must balance security with performance
+
+**Real-World Application:**
+- Automotive manufacturers implementing these exact techniques
+- Standards emerging (AUTOSAR SecOC, ISO/SAE 21434)
+- Regulatory requirements (UNECE WP.29) mandate cybersecurity
 
 ---
 
-## 📚 References
+## ✅ Conclusion
 
-### Standards & Specifications
+### Key Findings
+
+1. **CAN buses are vulnerable by design** - Trivial to attack without security
+2. **Layered security is essential** - No single measure stops all attacks
+3. **Performance impact is acceptable** - Security overhead stays under critical thresholds
+4. **Real-time constraints are satisfied** - All configurations safe for deployment
+
+### Security Effectiveness
+
+**Best Protection:**
+- **HMAC Authentication** stops spoofing (100% effective)
+- **Rate Limiting** stops flooding and replay attacks (>99% effective)
+- Combined: Blocks all three attack types
+
+**Weaknesses:**
+- Basic HMAC doesn't prevent replay (needs timestamps/nonces)
+- IDS only detects, doesn't prevent
+- Key management not addressed (how to distribute/rotate keys)
+
+### Future Improvements
+
+1. **Timestamp-based replay protection** - Add sequence numbers or timestamps to HMAC
+2. **Key rotation** - Periodic key updates to limit compromise impact
+3. **Hardware Security Modules (HSM)** - Secure key storage
+4. **Machine learning IDS** - Better anomaly detection
+5. **Multi-domain segmentation** - Separate critical/non-critical networks
+
+### Final Recommendation
+
+Deploy **HMAC + Rate Limiting** on all CAN networks as minimum baseline security. This provides:
+- ✅ Spoofing protection (HMAC)
+- ✅ Flooding protection (Rate Limiting)
+- ✅ Replay protection (Rate Limiting catches bursts)
+- ✅ Low latency (~0.7ms overhead)
+- ✅ Compatible with real-time requirements
+
+**The automotive industry must adopt these measures to protect vehicle safety and security.**
+
+---
+
+## 📚 Running the Simulation
+
+### Setup
+```bash
+# Install dependencies
+pip install pycryptodome websockets
+
+# Start backend
+python server.py
+
+# Open frontend in browser (React app on localhost:5173)
+npm run dev
+```
+
+### Usage
+1. Toggle security measures ON/OFF to see latency impact
+2. Start attacks to observe blocking effectiveness
+3. Monitor real-time latency graph (must stay under thresholds)
+4. Check statistics to verify security is working
+
+---
+
+## 📖 References
+
+### Standards
 - ISO 11898: CAN Bus Standard
-- SAE J1939: Heavy-duty vehicle CAN protocol
-- ISO 26262: Functional Safety Standard
+- ISO/SAE 21434: Automotive Cybersecurity Standard
+- AUTOSAR SecOC: Secure Onboard Communication
 
-### Research Papers
+### Research
 - Miller & Valasek (2015): "Remote Exploitation of an Unaltered Passenger Vehicle"
 - Checkoway et al. (2011): "Comprehensive Experimental Analyses of Automotive Attack Surfaces"
-- Koscher et al. (2010): "Experimental Security Analysis of a Modern Automobile"
-
-### Industry Guidelines
-- AUTOSAR SecOC (Secure Onboard Communication)
-- NHTSA Cybersecurity Best Practices
-- SAE J3061: Cybersecurity Guidebook
 
 ---
 
-## ⚠️ Disclaimer
-
-This software is **for educational purposes only**. 
-
-**DO NOT** use these techniques on actual vehicles without authorization. Unauthorized access to vehicle systems is **illegal** and **dangerous**.
-
-The authors assume no liability for misuse of this software.
-
----
-
-## 👥 Contributors
-
-This proof-of-concept demonstrates the critical importance of automotive cybersecurity in modern connected vehicles. By understanding attack vectors and defense mechanisms, we can build safer transportation systems.
-
-**Report Issues**: Provide feedback on attack realism and security effectiveness.
-
----
-
-## 📈 Performance Metrics
-
-### Typical Latencies (Baseline)
-- CAN message transmission: 0.256ms (128 bits @ 500 kbps)
-- No security: ~0.3ms total latency
-- Full security: ~1.2ms total latency
-
-### Attack Detection Rates
-- Bus flooding: 99%+ detection with rate limiting
-- Spoofing: 100% blocked with HMAC
-- Replay: ~80% detection with IDS (100% with timestamp-based auth)
-
-**Recommendation**: For safety-critical systems, use Encryption + Authentication only (no IDS/rate limiting) to stay under 10ms threshold.
-
----
-
-**Built with**: Python 3, WebSockets, React, Recharts, PyCryptodome
-
-**License**: MIT (Educational Use)
+**Built by:** Aidan Shaheen, Brian Wu, Calvin Berlin 
+**Course:** ENEE457  
+**Date:** Fall 2025

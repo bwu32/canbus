@@ -250,13 +250,28 @@ function App() {
               ))}
             </div>
 
-            {/* Total Overhead */}
-            <div className="stat-box" style={{ marginTop: '12px' }}>
-              <div style={{ fontSize: '12px', color: '#9ca3af', marginBottom: '4px' }}>
-                Total Security Overhead
+            {/* Total Overhead - Split into two columns */}
+            <div style={{ 
+              marginTop: '12px',
+              display: 'grid',
+              gridTemplateColumns: '1.75fr 1fr',
+              gap: '8px'
+            }}>
+              <div className="stat-box">
+                <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '4px' }}>
+                  Total Security Overhead
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#3b82f6' }}>
+                  {totalOverhead.toFixed(2)} ms
+                </div>
               </div>
-              <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#3b82f6' }}>
-                {totalOverhead.toFixed(2)} ms
+              <div className="stat-box">
+                <div style={{ fontSize: '11px', color: '#9ca3af', marginBottom: '4px' }}>
+                  Messages Encrypted
+                </div>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#3b82f6' }}>
+                  {securityStats.messages_encrypted || 0}
+                </div>
               </div>
             </div>
           </div>
@@ -317,44 +332,6 @@ function App() {
                   </div>
                 </div>
               ))}
-            </div>
-          </div>
-
-          {/* Security Statistics */}
-          <div className="card">
-            <div style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '12px' }}>
-              Security Statistics
-            </div>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: '8px',
-              fontSize: '12px'
-            }}>
-              <div className="stat-card stat-yellow">
-                <div>Detected</div>
-                <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-                  {securityStats.attacks_detected || 0}
-                </div>
-              </div>
-              <div className="stat-card stat-green">
-                <div>Blocked</div>
-                <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-                  {securityStats.attacks_blocked || 0}
-                </div>
-              </div>
-              <div className="stat-card stat-red">
-                <div>Successful</div>
-                <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-                  {securityStats.attacks_successful || 0}
-                </div>
-              </div>
-              <div className="stat-card stat-blue">
-                <div>Encrypted</div>
-                <div style={{ fontSize: '24px', fontWeight: 'bold' }}>
-                  {securityStats.messages_encrypted || 0}
-                </div>
-              </div>
             </div>
           </div>
         </div>
@@ -496,9 +473,9 @@ function App() {
                   display: "flex",
                   flexDirection: "row",
                   overflowX: "auto",
-                  width: "80%",
+                  width: "100%",
                   padding: "4px 0",
-                  fontSize: "16px"        // 👈 SHRINK LEGEND TEXT
+                  fontSize: "20px"
                 }}
               />
 

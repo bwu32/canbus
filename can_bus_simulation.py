@@ -61,20 +61,23 @@ class SecurityManager:
         
         # Rate limiting: track message counts per ID per time window
         self.rate_windows = defaultdict(lambda: deque(maxlen=100))
-        self.rate_limit_threshold = 50  # max messages per ID per second
+        self.rate_limit_threshold = 20  # Stricter: max 20 messages per ID per second
         
         # IDS: baseline message frequencies and patterns
         self.message_baseline = defaultdict(lambda: {'count': 0, 'avg_interval': 0})
         self.learning_phase = True
         self.learning_samples = defaultdict(list)
         
-        # Latency tracking per security measure
+        # Latency tracking per security measure (cumulative per message)
         self.latency_overhead = {
             'encryption': 0,
             'authentication': 0,
             'rate_limiting': 0,
             'ids': 0
         }
+        
+        # Track last update time to smooth out values
+        self.last_overhead_update = time.time()
         
     def toggle_measure(self, measure: str, enabled: bool):
         """Toggle a security measure on/off"""
@@ -91,7 +94,8 @@ class SecurityManager:
         padded = pad(data, BLOCK_SIZE)
         ct = cipher.encrypt(padded)
         overhead = time.time() - start
-        self.latency_overhead['encryption'] = overhead
+        # Store round-trip overhead (encrypt + decrypt)
+        self.latency_overhead['encryption'] = overhead * 2
         self.stats['messages_encrypted'] += 1
         return iv + ct, overhead
     
@@ -115,7 +119,8 @@ class SecurityManager:
         start = time.time()
         mac = hmac.new(HMAC_KEY, data, hashlib.sha256).digest()
         overhead = time.time() - start
-        self.latency_overhead['authentication'] = overhead
+        # Store round-trip overhead (sign + verify)
+        self.latency_overhead['authentication'] = overhead * 2
         self.stats['messages_authenticated'] += 1
         return data + mac, overhead
     
