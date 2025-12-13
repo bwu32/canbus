@@ -1,6 +1,6 @@
 # CAN Bus Security Simulation
 
-###Disclaimer: Generative AI was used in this project to assist in implementation of cybersecurity topics as discussed in class. 
+### Disclaimer: Generative AI was used in this project to assist in implementation of cybersecurity topics as discussed in class. 
 
 ## 🎯 Objective
 
@@ -439,3 +439,4 @@ npm run dev
 **Course:** ENEE457  
 
 **Date:** Fall 2025
+
