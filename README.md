@@ -1,5 +1,7 @@
 # CAN Bus Security Simulation
 
+###Disclaimer: Generative AI was used in this project to assist in implementation of cybersecurity topics as discussed in class. 
+
 ## 🎯 Objective
 
 **Goal:** Simulate in-vehicle CAN communications to demonstrate how attackers can inject, replay, or flood messages to manipulate ECUs, then apply computer security principles to strengthen those vulnerabilities.
@@ -435,4 +437,5 @@ npm run dev
 
 **Built by:** Aidan Shaheen, Brian Wu, Calvin Berlin 
 **Course:** ENEE457  
+
 **Date:** Fall 2025
